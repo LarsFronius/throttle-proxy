@@ -1,60 +1,78 @@
 #!/usr/bin/env node
 
 var proxy = require('../lib/server.js');
+var argv;
 
-var argv = require('optimist')
-  .usage('Throttle HTTP proxy server')
-  .describe('port', 'incoming port number')
-  .default('port', 3128)
-  .alias('port', 'p')
-  .describe('speed', 'throttle incoming data speed to value')
-  .default('speed', 100000)
-  .alias('speed', 's')
-  .describe('outgoing', 'throttle outgoing data speed to value')
-  .describe('match', 'throttle requests matching')
-  .describe('skip', 'bypass throttling requests matching')
-  .string(['match', 'skip'])
-  .check(function (config) {
+/**
+ * Check for string
+ * @param val
+ * @returns {boolean} return false if val is not empty string
+ */
+function checkString(val) {
+	return !(typeof val == 'string' && val.length > 0);
+}
 
-    function checkString(val) {
-      if (typeof val == "boolean" && val) {
-        return true;
-      } else if (typeof val == "undefined" || (typeof val == "boolean" && !val)) {
-        return false;
-      } else {
-        return !(typeof val == "string" && val.length > 0);
-      }
-    }
+/**
+ * Check for positive number
+ * @param val
+ * @returns {boolean} return false if val is not positive number
+ */
+function checkPositiveNumber(val) {
+	return !(typeof val == 'number' && val > 0);
+}
 
-    config.port = parseInt(config.port);
-    if (isNaN(config.port)) {
-      throw new Error("port must be a number");
-    }
-    config.speed = parseInt(config.speed);
-    if (isNaN(config.speed) || config.speed < 1) {
-      throw new Error("speed must be a number");
-    }
-    config.outgoing = config.outgoing && config.outgoing !== true ? parseInt(config.outgoing) : null;
-    if (config.outgoing && (isNaN(config.outgoing) || config.outgoing < 1)) {
-      throw new Error("outgoing speed must be a number");
-    }
-    if (config.match && config.skip) {
-      throw new Error("simultaneous use of --match and --skip is not allowed");
-    }
-    if (checkString(config.match)) {
-      throw new Error("wrong --match pattern");
-    }
-    if (checkString(config.skip)) {
-      throw new Error("wrong --skip pattern");
-    }
 
-    return true;
-  });
+argv = require('optimist')
+	.usage('Throttle HTTP proxy server')
+	.describe('port', 'incoming port number')
+	.default('port', 3128)
+	.alias('port', 'p')
+	.describe('speed', 'throttle incoming data speed to value')
+	.default('speed', 100000)
+	.alias('speed', 's')
+	.describe('outgoing', 'throttle outgoing data speed to value')
+	.describe('match', 'throttle requests matching')
+	.describe('skip', 'bypass throttling requests matching')
+	.string(['match', 'skip'])
+	.check(function (config) {
 
-var config = argv.argv;
+		if (checkPositiveNumber(config)) {
+			throw new Error('port must be a number');
+		}
 
-var pattern = config.match ? config.match : config.skip;
-var skip = !!config.skip;
+		if (checkPositiveNumber(config.speed)) {
+			throw new Error('speed must be a number');
+		}
+
+		if (typeof config.outgoing != 'undefined' && checkPositiveNumber(config.outgoing)) {
+			throw new Error('outgoing speed must be a number');
+		}
+
+		if (typeof config.match != 'undefined' && typeof config.skip != 'undefined') {
+			throw new Error('simultaneous use of --match and --skip is not allowed');
+		}
+
+		if (checkString(config.match)) {
+			throw new Error("wrong --match pattern");
+		}
+
+		if (checkString(config.skip)) {
+			throw new Error("wrong --skip pattern");
+		}
+
+		return true;
+	})
+	.argv;
+
+var pattern, skip;
+
+if (typeof argv.match != 'undefined') {
+	pattern = argv.match;
+	skip = false;
+} else {
+	pattern = argv.skip;
+	skip = true;
+}
 
 proxy(config.speed, config.outgoing, pattern, skip)
   .listen(config.port, function () {
